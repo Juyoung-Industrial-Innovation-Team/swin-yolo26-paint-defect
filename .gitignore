@@ -98,17 +98,14 @@ dmypy.json
 # 🚀 Custom Project Rules (2026 KISCP Spring Project)
 # ========================================
 
-# 1. 대용량 데이터셋 업로드 원천 차단
+# 1. data 폴더 예외 처리
 data/*
-
-# 2. 단, data 폴더 안의 가이드 문서(readme.md)는 예외적으로 업로드 허용
+!data/.gitkeep
 !data/readme.md
 
-# 3. 모델 가중치 파일(수십~수백MB) 업로드 차단
+# 2. 모델 가중치 파일(수십~수백MB) 업로드 차단
 models/*
 *.pt
 *.pth
 *.mlpackage
-
-# 4. 빈 폴더 구조 유지를 위한 예외 처리 (필요시)
 !models/.gitkeep
