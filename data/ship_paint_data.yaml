@@ -1,0 +1,8 @@
+# 폴더 대신 이미지 리스트(.txt)를 직접 지정!
+train: ../data/train_list.txt
+val: ../data/valid_list.txt
+test: ../data/test_list.txt
+
+# 클래스 정보 (정상 제외 7개)
+nc: 7
+names: ['워터스포팅', '흐름', '도막분리', '핀홀', '균열', '부풀음', '이물질포함']
