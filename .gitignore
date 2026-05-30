@@ -71,7 +71,7 @@ ipython_config.py
 # Environments
 .env
 .envrc
-.venv
+.venv/
 env/
 venv/
 ENV/
