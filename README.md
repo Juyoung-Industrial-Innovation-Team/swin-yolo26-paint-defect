@@ -48,22 +48,32 @@ python -c "import torch; print(f'GPU Available: {torch.cuda.is_available()}')"
 ## 📁 Repository Structure
 ```text
 swin-yolo26-paint-defect/
-├── 📁 data/               # ⚠️ 빈 폴더 (로컬의 423GB 데이터셋 마운트 경로)
-├── 📁 models/             # ⚠️ 빈 폴더 (학습된 가중치 .pt, .mlpackage 저장 경로)
-├── 📁 utils/              # 데이터 전처리(csv 파일 생성) 모듈
-├── 📁 notebooks/          # EDA, 데이터 불균형 시각화, 실험용 주피터 노트북
-├── 📁 src/
-│   ├── preprocess.py       # A메타데이터 기반 YOLO 포맷 변환 (On-the-fly)
-│   ├── train.py            # Swin-YOLO26 하이브리드 모델 학습 스크립트
-│   └── export.py           # CoreML (INT8/FP16) 양자화 변환 스크립트
-├── 📁 ios-app/             # [추가] 아이폰 16 구현물용 폴더
-│   ├── 📁 ShipPaintApp/    # Xcode 프로젝트 (.xcodeproj)
-│   ├── 📁 Models/          # CoreML 모델 파일 (.mlpackage)
-│   ├── 📁 ViewControllers/ # 앱의 UI 로직
-│   └── README.md            # iOS 앱 빌드/배포 가이드
-├── 📁 paper/               # 논문 작성 중 폴더
-├── .gitignore               # 대용량 파일 및 빌드 산출물 업로드 방지 규칙
-└── environment.yml         # 프로젝트 전용 Conda 가상환경 정의 파일 (Python 3.10 기반)
+├── 📁 data/                  # 데이터셋 최상위 폴더
+│   ├── 📁 01-1.정식개방데이터/ # AI-Hub 원본 (Training / Validation)
+│   └── 📁 test_juyoung/      # ⭐ 주영산업(주) 실제 현장 테스트 데이터 (Zero-shot Test용)
+├── 📁 notebooks/             # EDA, 실험용 주피터 노트북
+├── 📁 models/                # 모델의 '설계도' (Swin 아키텍처, YOLO 헤드 등 구조 코드)
+├── 📁 scripts/
+│   ├── preprocess.py         # A메타데이터 기반 YOLO 포맷 변환 (On-the-fly)
+│   ├── train.py              # Swin-YOLO26 하이브리드 모델 학습 스크립트
+│   └── export.py             # CoreML (INT8/FP16) 양자화 변환 스크립트
+├── 📁 runs/                  # 🌟 [핵심] 모든 실험 결과와 가중치가 저장되는 곳
+│   ├── 📂 YOLO11m_baseline/
+│   │   ├── 📂 weights/                # best.pt, last.pt 저장
+│   │   ├── 📂 logs/                   # Loss, mAP 학습 그래프 (TensorBoard 등)
+│   │   └── 📂 test_results/
+│   └── 📂 Swin_YOLO26_hybrid/
+│       ├── 📂 weights/
+│       ├── 📂 logs/
+│       └── 📂 test_results/
+├── 📁 ios-app/               # [추가] 아이폰 16 구현물용 폴더
+│   ├── 📁 ShipPaintApp/      # Xcode 프로젝트 (.xcodeproj)
+│   ├── 📁 Models/            # CoreML 모델 파일 (.mlpackage)
+│   ├── 📁 ViewControllers/   # 앱의 UI 로직
+│   └── README.md             # iOS 앱 빌드/배포 가이드
+├── 📁 paper/                 # 논문 작성 중 폴더
+├── .gitignore                # 대용량 파일 및 빌드 산출물 업로드 방지 규칙
+└── environment.yml           # 프로젝트 전용 Conda 가상환경 정의 파일 (Python 3.10 기반)
 ```
 
 ## 📊 Dataset (AI-Hub 선박 도장 품질 데이터)
