@@ -102,6 +102,8 @@ dmypy.json
 data/*
 !data/.gitkeep
 !data/readme.md
+!data/01-1.정식개방데이터/Training/.gitkeep
+!data/01-1.정식개방데이터/Validation/.gitkeep
 
 # 2. 모델 가중치 파일(수십~수백MB) 업로드 차단
 models/*
