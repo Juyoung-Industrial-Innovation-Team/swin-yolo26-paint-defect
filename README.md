@@ -76,7 +76,7 @@ swin-yolo26-paint-defect/
 │   ├── preprocess.py   # AI-Hub JSON 파싱 및 11개 클래스 YOLO 포맷 변환
 │   ├── train.py        # 하이브리드 모델 학습 스크립트
 │   └── export.py       # CoreML (INT8/FP16) 변환 스크립트
-├── requirements.txt    # 파이썬 의존성 패키지 목록
+├── environment.yml     # 프로젝트 전용 Conda 가상환경 정의 파일 (Python 3.10 기반)
 │
 ├── 📁 ios-app/        # [추가] 아이폰 16 구현물용 폴더
 │   ├── ShipPaintApp/  # Xcode 프로젝트 (.xcodeproj)
