@@ -20,7 +20,7 @@ cd swin-yolo26-paint-defect
 
 ### 2. 경량화 데이터셋 다운로드 (Google Drive)
 본 프로젝트는 423GB 원본 대신, 로컬 디스크 및 메모리 부하를 방지하기 위해 불필요한 데이터를 제거하고 클래스 밸런싱을 맞춘 경량화 마스터 데이터셋(`ship_paint_dataset_light.zip`)을 사용합니다.
-- [ship_paint_dataset_light.zip 다운로드](https://drive.google.com/file/d/123456789/view?usp=sharing)
+- [ship_paint_dataset_light.zip 다운로드](https://drive.google.com/file/d/1AL2rdw95PNnYLQvqwOupwpyhZE_9g8RI/view?usp=sharing)
 - 다운로드한 .zip 파일을 방금 클론받은 프로젝트의 data/ 폴더 내부에 압축 해제합니다.
 - 압축 해제 후, 파일 구조가 반드시 아래와 같이 되어야 파이프라인이 정상 작동합니다.
 ```
