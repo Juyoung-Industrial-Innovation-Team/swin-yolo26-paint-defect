@@ -20,7 +20,7 @@ cd swin-yolo26-paint-defect
 
 ### 2. 경량화 데이터셋 다운로드 (Google Drive)
 본 프로젝트는 423GB 원본 대신, 로컬 디스크 및 메모리 부하를 방지하기 위해 불필요한 데이터를 제거하고 클래스 밸런싱을 맞춘 경량화 마스터 데이터셋(`ship_paint_dataset_light.zip`)을 사용합니다.
-- [다운로드 링크 (Google Drive)]: (https://drive.google.com/file/d/1AL2rdw95PNnYLQvqwOupwpyhZE_9g8RI/view?usp=sharing)
+- [ship_paint_dataset_light.zip 다운로드](https://drive.google.com/file/d/123456789/view?usp=sharing)
 - 다운로드한 .zip 파일을 방금 클론받은 프로젝트의 data/ 폴더 내부에 압축 해제합니다.
 - 압축 해제 후, 파일 구조가 반드시 아래와 같이 되어야 파이프라인이 정상 작동합니다.
 ```
@@ -56,15 +56,14 @@ swin-yolo26-paint-defect/
 │   ├── preprocess.py       # A메타데이터 기반 YOLO 포맷 변환 (On-the-fly)
 │   ├── train.py            # Swin-YOLO26 하이브리드 모델 학습 스크립트
 │   └── export.py           # CoreML (INT8/FP16) 양자화 변환 스크립트
-├── environment.yml         # 프로젝트 전용 Conda 가상환경 정의 파일 (Python 3.10 기반)
-│
 ├── 📁 ios-app/             # [추가] 아이폰 16 구현물용 폴더
 │   ├── 📁 ShipPaintApp/    # Xcode 프로젝트 (.xcodeproj)
 │   ├── 📁 Models/          # CoreML 모델 파일 (.mlpackage)
 │   ├── 📁 ViewControllers/ # 앱의 UI 로직
 │   └── README.md            # iOS 앱 빌드/배포 가이드
-│
-└── .gitignore               # 대용량 파일 및 빌드 산출물 업로드 방지 규칙
+├── 📁 paper/               # 논문 작성 중 폴더
+├── .gitignore               # 대용량 파일 및 빌드 산출물 업로드 방지 규칙
+└── environment.yml         # 프로젝트 전용 Conda 가상환경 정의 파일 (Python 3.10 기반)
 ```
 
 ## 📊 Dataset (AI-Hub 선박 도장 품질 데이터)
