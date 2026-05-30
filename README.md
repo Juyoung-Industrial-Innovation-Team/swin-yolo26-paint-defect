@@ -8,6 +8,7 @@
 swin-yolo26-paint-defect/
 ├── data/               # ⚠️ 빈 폴더 (로컬의 423GB 데이터셋 마운트 경로)
 ├── models/             # ⚠️ 빈 폴더 (학습된 가중치 .pt, .mlpackage 저장 경로)
+├── utils/              # 데이터 전처리(csv 파일 생성) 모듈
 ├── notebooks/          # EDA, 데이터 불균형 시각화, 실험용 주피터 노트북
 ├── src/
 │   ├── preprocess.py   # AI-Hub JSON 파싱 및 11개 클래스 YOLO 포맷 변환
