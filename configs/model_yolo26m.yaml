@@ -1,0 +1,39 @@
+# ==============================================================
+# 선박 도장 품질 결함 탐지 - YOLO26m 대조군 학습 설정 (Colab Pro+ 전용)
+# ==============================================================
+# 💡 [팀장님 실행 가이드] 
+# 코랩의 새로운 셀(Cell)을 열고 아래 명령어들을 순서대로 실행해 주세요.
+#
+# 1. 구글 드라이브 마운트 및 저장소 이동
+# !from google.colab import drive; drive.mount('/content/drive')
+# %cd /content/drive/MyDrive/swin-yolo26-paint-defect
+#
+# 2. 필수 라이브러리 설치 (YOLO26 지원 환경)
+# !pip install ultralytics==8.2.0 (버전은 환경에 맞게 조정)
+#
+# 3. 학습 스크립트 실행
+# !python scripts/train.py --config configs/model_yolo26m.yaml
+# ==============================================================
+
+# 1. 모델 설정
+model_path: "yolo26m.pt"    # YOLO26m 공식 가중치 로드
+
+# 2. 데이터셋 경로 (구글 드라이브 경로 기준)
+# 🚨 로컬(../data/..)이 아닌 코랩 드라이브 절대경로로 지정하는 것이 안전합니다.
+data: "/content/swin-yolo26-paint-defect/data/ship_paint_data.yaml"
+
+# 3. 하드웨어 및 리소스 설정 (⚡ Colab Pro+ A100 GPU 극한 최적화)
+device: 0                   # 코랩은 단일 A100 GPU를 할당하므로 0번 사용
+batch: 128                  # 🚀 [상향] A100 40GB VRAM의 힘! 32 -> 128로 4배 뻥튀기
+workers: 8                  # 코랩 Pro+에서 제공하는 8~12코어 CPU 최대한 활용
+cache: false                # 데이터셋 전체 크기가 CoLab Pro+ 50GB 램 용량을 넘어가면 False로 설정하세요
+
+# 4. 학습 하이퍼파라미터
+imgsz: 640                  # 동등 비교를 위해 640 유지
+epochs: 100                 
+#patience: 20                
+#dropout: 0.15               
+
+# 5. 부가 기능
+val: True                   
+plots: True
