@@ -7,6 +7,7 @@ import yaml
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
 from ultralytics import YOLO
+from ultralytics.models.yolo.detect import DetectionTrainer
 
 def main():
     # 1. 터미널 명령어 매개변수 설정
@@ -58,28 +59,44 @@ def main():
         custom_module = __import__(module_name)
         SwinYOLO26 = getattr(custom_module, 'SwinYOLO26')
         
-        # 커스텀 PyTorch 모델 인스턴스화
-        custom_model = SwinYOLO26(model_size='m', num_classes=config.get('nc', 7))
+        # 💡 [핵심 하이재킹] DetectionTrainer 가로채기
+        class SwinYOLOTrainer(DetectionTrainer):
+            def get_model(self, cfg=None, weights=None, verbose=True):
+                print("\n" + "🔥" * 25)
+                print("🚀 [트레이너 하이재킹 성공] 원본 YOLO 대신 Swin-YOLO26 아키텍처를 강제 주입합니다!")
+                print("🔥" * 25 + "\n")
+                
+                # 1. 원본 YOLO 껍데기 로드 (Loss 함수, 정답 매칭 등 Ultralytics 생태계 활용 목적)
+                shell_model = super().get_model(cfg, weights, verbose)
+                
+                # 2. 우리의 커스텀 신경망(Swin-YOLO) 생성
+                num_cls = self.data.get('nc', 7)
+                custom_net = SwinYOLO26(model_size='m', num_classes=num_cls)
+                
+                # 3. 껍데기의 핵심 순전파(Forward) 함수를 커스텀 신경망으로 덮어쓰기
+                # (args, kwargs를 무시하여 호환성 에러 방지)
+                def custom_forward(x, *args, **kwargs):
+                    return custom_net(x)
+                
+                shell_model._forward_once = custom_forward
+                shell_model.model = custom_net # Summary 출력용 속임수
+                
+                return shell_model
+
+        # 딕셔너리로 인자 묶기
+        train_args = config.copy()
+        train_args['model'] = "yolo11m.yaml" # 껍데기 생성을 위한 더미
+        train_args['project'] = RUNS_PATH
+        train_args['name'] = f"exp_{config_name}"
         
-        # 💡 [핵심 트릭] Ultralytics 학습 파이프라인을 타기 위해 껍데기 YOLO 객체 생성 후 알맹이 교체
-        model = YOLO("yolo11m.yaml") # 베이스라인 껍데기 로드
-        model.model = custom_model   # 우리가 만든 Swin-YOLO로 신경망 완벽 교체
-        
-        # Ultralytics 엔진이 요구하는 필수 메타데이터 주입
-        model.model.names = config.get('names', ['워터스포팅', '흐름', '도막분리', '핀홀', '균열', '부풀음', '이물질포함'])
-        model.model.nc = len(model.model.names)
+        # 하이재킹된 트레이너로 직접 학습 시작!
+        trainer = SwinYOLOTrainer(overrides=train_args)
+        trainer.train()
         
     else:
-        # 기존 방식 (.pt 또는 .yaml)
+        # 기존 베이스라인 모델용
         model = YOLO(model_path)
-
-    # 5. 학습 시작
-    # **config는 data, epochs, batch, imgsz 등을 한 번에 딕셔너리로 풀어 넣는 파이썬 문법입니다.
-    results = model.train(
-        project=RUNS_PATH,
-        name=f"exp_{config_name}",  
-        **config                    
-    )
+        model.train(project=RUNS_PATH, name=f"exp_{config_name}", **config)
 
 if __name__ == '__main__':
     main()

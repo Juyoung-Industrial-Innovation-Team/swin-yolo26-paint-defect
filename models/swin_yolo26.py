@@ -31,11 +31,11 @@ class SwinYOLO26(nn.Module):
         super().__init__()
         
         # 1. Swin Transformer Backbone 로드 (timm 라이브러리 활용)
-        # model_size 매개변수에 따라 Swin의 체급(tiny, small, base)을 동적으로 결정
+        # model_size 매개변수와 상관없이 Swin의 체급(tiny)을 고정하여 일관된 피처맵 크기와 채널 수를 보장합니다.
         swin_type = {'n': 'swin_tiny_patch4_window7_224',
                      's': 'swin_small_patch4_window7_224',
                      'm': 'swin_base_patch4_window7_224',
-                     'l': 'swin_large_patch4_window7_224'}.get(model_size, 'swin_base_patch4_window7_224')
+                     'l': 'swin_large_patch4_window7_224'}.get(model_size, 'swin_tiny_patch4_window7_224')
         
         # features_only=True: 최종 분류기가 아닌 중간 계층의 피처맵 3개만 추출
         self.backbone = timm.create_model(swin_type, pretrained=True, features_only=True, out_indices=(1, 2, 3))
