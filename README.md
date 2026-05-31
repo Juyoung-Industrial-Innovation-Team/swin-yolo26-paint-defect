@@ -49,10 +49,15 @@ python -c "import torch; print(f'GPU Available: {torch.cuda.is_available()}')"
 ```text
 swin-yolo26-paint-defect/
 ├── 📁 data/                  # 데이터셋 최상위 폴더
+│   ├── ship_paint_data.yaml  # 데이터셋 명세서
 │   ├── 📁 01-1.정식개방데이터/ # AI-Hub 원본 (Training / Validation)
-│   └── 📁 test_juyoung/      # ⭐ 주영산업(주) 실제 현장 테스트 데이터 (Zero-shot Test용)
 ├── 📁 notebooks/             # EDA, 실험용 주피터 노트북
-├── 📁 models/                # 모델의 '설계도' (Swin 아키텍처, YOLO 헤드 등 구조 코드)
+├── 📁 models/
+│   └── swin_yolo26.py        # Swin 아키텍처, YOLO 헤드 등 구조 코드
+├── 📁 configs/               # 학습 설정 값 파일 모음
+│   └── model_yolo11m.yaml
+│   └── model_yolo26m.yaml
+│   └── model_swin_yolo26m.yaml
 ├── 📁 scripts/
 │   ├── preprocess.py         # A메타데이터 기반 YOLO 포맷 변환 (On-the-fly)
 │   ├── train.py              # Swin-YOLO26 하이브리드 모델 학습 스크립트
