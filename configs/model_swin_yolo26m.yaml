@@ -3,18 +3,21 @@
 # ==============================================================
 
 # 1. 모델 설정 (핵심 변경점)
-# .pt(가중치)가 아닌, 우리가 설계할 아키텍처를 바라보게 합니다.
-model_path: "../models/swin_yolo26.py"    # TO-DO 검토 필요.
+# 주의: 이 파일명(model_swin_yolo26m.yaml)에 'swin'이 포함되어 있으므로, 
+# train.py 내부 로직에 의해 models/swin_yolo26.py 의 커스텀 코드가 자동으로 가동됩니다.
+# 여기서의 model_path는 뼈대가 될 순정 구조체를 명시합니다.
+model_path: "yolo26m.yaml"
 
 # 2. 하드웨어 및 리소스 설정 (RTX 3090 맞춤형)
 device: 0                   # 사용할 GPU 번호
-batch: 16                   # 🚨 [주의] Swin 블록의 메모리 점유율이 높아 32 -> 16으로 하향 타협
+batch: 4                   # 🚨 [주의] Swin 블록의 메모리 점유율이 높아 OOM 방지를 위해 4 유지
 workers: 4                  # 데이터 로딩 멀티프로세싱 코어 수 (Ryzen 5600X 기준)
 cache: False                # RAM 데이터 캐싱 여부 (32GB RAM 보호를 위해 False 유지)
 
 # 3. 데이터 및 학습 하이퍼파라미터 (공정 비교를 위해 베이스라인과 동일하게 통제)
 data: "../data/ship_paint_data.yaml"  # 데이터셋 명세서 경로
-imgsz: 640                  # 입력 이미지 해상도 (640 고정)
+imgsz: 640             # 입력 이미지 크기
+#imgsz: 672                # YOLO의 32배수, Swin의 28배수의 최소 공배수.
 epochs: 100                 # 최대 학습 에폭
 #patience: 20                
 #dropout: 0.15 
