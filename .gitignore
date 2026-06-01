@@ -105,6 +105,7 @@ data/*
 !data/01-1.정식개방데이터/Training/.gitkeep
 !data/01-1.정식개방데이터/Validation/.gitkeep
 !data/ship_paint_data.yaml
+!data/samples/*
 
 # 2. 모델 가중치 파일(수십~수백MB) 업로드 차단
 runs/*
