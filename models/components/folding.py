@@ -39,10 +39,14 @@ class DynamicLosslessTensorFolding(nn.Module):
         # 기존 Conv2d를 대체하여 암호학적 구조를 완성합니다.
         self.spn = SPNModule(in_channels=in_channels * 16, out_channels=embed_dim, groups=4)
 
+        # ✅ 좋은 방향: 공간 차원(H, W)을 제외하고 오직 고정 하이퍼파라미터인 embed_dim만 명시!
+        # PyTorch LayerNorm은 정수 하나만 주어지면 텐서의 '최하위(마지막) 차원'을 기준으로 정규화합니다.
+        self.norm = nn.LayerNorm(embed_dim)
+
     def forward(self, x):
         orig_h, orig_w = x.shape[2], x.shape[3]
         
-        # 동적 패딩 계산 (128 배수)
+        # 1. 동적 패딩 계산 (128 배수)
         pad_h = (128 - orig_h % 128) % 128
         pad_w = (128 - orig_w % 128) % 128
         
@@ -51,13 +55,21 @@ class DynamicLosslessTensorFolding(nn.Module):
             
         padded_h, padded_w = x.shape[2], x.shape[3]
         
-        # 무손실 텐서 폴딩: [B, 3, H, W] -> [B, 48, H/4, W/4]
+        # 2. 무손실 텐서 폴딩: [B, 3, H, W] -> [B, 48, H/4, W/4]
         x = self.unshuffle(x)
         
-        # SPN 치환/순열 연산
+        # 3. SPN 치환/순열 연산
         out = self.spn(x)
+
+        # 4. ✅ 최적의 SPN-LN-Swin 정규화 인터페이스 구현
+        # LayerNorm을 적용하기 위해 채널 차원(C)을 맨 뒤로 밀어줍니다.
+        # [B, C, H_sub, W_sub] -> [B, H_sub, W_sub, C]
+        out = out.permute(0, 2, 3, 1)
         
-        # Log-CPB 메타데이터 및 원본 사이즈 정보 포함
+        # 최하위 차원인 C(embed_dim)축을 기준으로 정규화 수행 (H, W가 동적으로 변해도 완벽 대응)
+        out = self.norm(out)
+        
+        # 5.Log-CPB 메타데이터 및 원본 사이즈 정보 포함
         # 추론 시 BBox 좌표 복원에 필수적인 정보입니다.
         meta_info = {
             'orig_size': (orig_h, orig_w),
