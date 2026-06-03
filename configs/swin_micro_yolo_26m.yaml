@@ -1,0 +1,55 @@
+# ==============================================================================
+# 엣지 비전 AI 기반 선박 도장 품질 감리를 위한 Swin-YOLO26 하이브리드 모델 훈련 설정
+# File: configs/swin_micro_yolo_26m.yaml
+# ==============================================================================
+
+# [Phase 1] Input & Data Pipeline (입력 및 전처리부)
+# ------------------------------------------------------------------------------
+data: "../data/ship_paint_data.yaml"  # 클래스 메타데이터 (양품 1종 + 불량 7종 = 총 8종)
+imgsz: 640                            # 데이터로더가 원본에서 잘라낼 패치(Tile/Crop)의 기준 규격
+batch: 4                              # Swin 어텐션 연산량 및 RTX 3090 OOM 방지를 위한 보수적 배치
+workers: 4                            # 멀티프로세싱 데이터 로딩 코어 수
+cache: false                          # 423GB 방대한 데이터의 RAM 과부하를 막기 위해 캐싱 비활성화
+
+# [Phase 2] Custom Bridge & Folding (텐서 형상 적응부 - MLOps Manifest)
+# (코드 내에 하드코딩되는 값이지만, 실험 재현성을 위해 명시적으로 기록)
+# ------------------------------------------------------------------------------
+folding_config:
+  dynamic_pad: 128                    # NPU 타일링 및 무손실 윈도우 분할을 위한 패딩 배수
+  downscale_factor: 4                 # PixelUnshuffle 공간-채널 압축 비율 (r=4)
+  spn_groups: 4                       # 암호학 기반 SPN 모듈의 그룹 컨볼루션 분할 수
+
+# [Phase 3] Backbone: Swin-Micro (특징 추출부)
+# ------------------------------------------------------------------------------
+backbone_config:
+  embed_dim: 64                       # NPU 메모리 정렬(Power of 2)에 최적화된 초기 채널 수
+  depths: [2, 2, 2]                   # 전역 문맥보다 로컬 텍스처(결함)에 집중하기 위한 얕은 블록 설계
+  num_heads: [2, 4, 8]                # 차원 확장에 비례하는 Multi-head 수
+  window_size: 8                      # 128 배수 패딩 텐서와의 Zero-Padding 무손실 분할을 위한 윈도우 크기
+  mlp_ratio: 4.0                      # 피드포워드 네트워크(FFN) 채널 확장 비율
+  qkv_bias: true                      # 미세 결함 특징 추출을 위한 편향(Bias) 연산 허용
+  drop_path_rate: 0.1                 # 얕은 망에 맞춘 제한적 Drop Path 적용
+
+# [Phase 4] Neck & Head: YOLO26 Medium (다중 피처 융합 및 탐지부)
+# ------------------------------------------------------------------------------
+yolo_config:
+  model_type: "swin_micro_yolo_26m"   # 아키텍처 식별자 (train.py에서 커스텀 모델 호출 시 사용)
+  nc: 8                               # Number of Classes (양품 1 + 불량 7 = 총 8개)
+  depth_multiple: 0.67                # YOLO Neck(PANet)의 깊이 배수 (Medium 체급)
+  width_multiple: 0.75                # YOLO Neck(PANet)의 채널 배수 (Medium 체급)
+  stal_assigner: true                 # Small-Target-Aware Label Assignment 활성화
+  nms_free: true                      # NMS 후처리 제거 아키텍처 활성화
+
+# [Phase 5] Training Dynamics (학습 및 최적화 동역학)
+# ------------------------------------------------------------------------------
+epochs: 100                           # 최대 반복 학습 횟수
+freeze_epochs: 20                    # ⭐ 초기 20 Epoch 동안 Swin 백본 및 Folding 레이어 동결 (가중치 보호)
+patience: 20                          # [Early Stopping] 20 Epoch 동안 mAP 개선 없으면 학습 자동 종료
+optimizer: "AdamW"                    # Transformer 아키텍처 가중치 평탄화에 필수적인 최적화 함수
+lr0: 0.001                            # 초기 학습률 (CNN 대비 세밀한 조정을 위해 1/10 수준으로 하향)
+lrf: 0.01                             # 최종 학습률 도달 비율 (0.00001까지 점진적 감소)
+warmup_epochs: 3.0                    # 학습 초기(3 Epoch) 발산 방지를 위한 서서히 학습률 상승
+weight_decay: 0.05                    # 하이브리드 모델의 과적합(Overfitting) 방지
+cos_lr: true                          # 미세 결함 탐지(Local Minimum) 안착을 위한 코사인 어닐링 적용
+val: true                             # 매 Epoch 검증 수행
+plots: true                           # BBox 및 히트맵 훈련 결과 시각화 차트 자동 저장
