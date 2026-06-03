@@ -30,7 +30,8 @@ class DynamicLosslessTensorFolding(nn.Module):
     - 학습 해상도: 제한 없음 (동적 패딩이 128 배수로 자동 정렬).
     - 추론 해상도: 제한 없음 (동적 패딩이 128 배수로 자동 정렬).
     """
-    def __init__(self, in_channels=3, embed_dim=96):
+    # NPU 최적화 체급(Micro)에 맞춰 embed_dim 기본값을 64로 변경
+    def __init__(self, in_channels=3, embed_dim=64):
         super().__init__()
         # PixelUnshuffle: 연산량 0 (Zero-FLOPs). 공간 정보를 채널로 접음 (r=4)
         self.unshuffle = nn.PixelUnshuffle(downscale_factor=4)
