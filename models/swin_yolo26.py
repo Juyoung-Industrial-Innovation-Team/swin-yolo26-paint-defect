@@ -11,6 +11,7 @@ Architecture Design:
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F  # 💡 이 한 줄이 누락되었습니다!
 import timm
 from ultralytics.nn.tasks import DetectionModel
 from ultralytics.models.yolo.detect import DetectionTrainer
@@ -25,6 +26,9 @@ class FeatureAlignmentBridge(nn.Module):
     """
     def __init__(self, swin_channels, target_neck_channels):
         super().__init__()
+        # [수정] YOLO의 Neck(PANet)이 기대하는 고정 피처 맵 크기
+        self.target_sizes = [80, 40, 20]
+
         # Swin-Tiny의 출력 채널 [192, 384, 768]을 
         # YOLO26m의 순정 Neck 입력 채널 [512, 512, 512]로 강제 확장(Projection)
         self.bridge_p3 = nn.Conv2d(swin_channels[0], target_neck_channels[0], kernel_size=1)
@@ -35,13 +39,17 @@ class FeatureAlignmentBridge(nn.Module):
         self.act = nn.SiLU(inplace=True)
 
     def forward(self, features):
-        # timm 패키지의 Swin 출력은 기본적으로 (Batch, Channel, Height, Width) 포맷을 가집니다.
-        # 1x1 Conv 연산을 통해 공간 해상도(H, W)는 유지한 채 채널(C) 차원만 변경합니다.
-        p3 = self.act(self.bridge_p3(features[0].permute(0, 3, 1, 2)))
-        p4 = self.act(self.bridge_p4(features[1].permute(0, 3, 1, 2)))
-        p5 = self.act(self.bridge_p5(features[2].permute(0, 3, 1, 2)))
-        
-        return [p3, p4, p5]
+        aligned = []
+        for i, (feat, target_size) in enumerate(zip(features, self.target_sizes)):
+            x = feat.permute(0, 3, 1, 2) # (B, H, W, C) -> (B, C, H, W)
+            if i == 0: x = self.bridge_p3(x)
+            elif i == 1: x = self.bridge_p4(x)
+            else: x = self.bridge_p5(x)
+            
+            # [수정] AdaptivePooling으로 해상도를 target_size로 강제 고정
+            x = F.adaptive_avg_pool2d(x, (target_size, target_size))
+            aligned.append(self.act(x))
+        return aligned
 
 class SwinYOLO26(DetectionModel):
     """
@@ -76,59 +84,43 @@ class SwinYOLO26(DetectionModel):
         print("💡 [Swin-YOLO] Feature Alignment Bridge 결합 완료!")
 
     def _predict_once(self, x, profile=False, visualize=False, embed=None):
-        """
-        [핵심 수술 부위] Forward Pass (데이터 흐름) 가로채기
-        
-        순정 YOLO 모델의 순차적(Sequential) 연산 흐름을 재정의합니다.
-        0~9번 레이어 연산을 Swin Backbone 연산으로 대체하고, 그 결과를 Neck 모듈로 전달합니다.
-        """
-        # [우회 로직] 모델 초기화 단계에서 내부 더미 패스가 돌 때, Swin이 아직 생성 전이면 순정 로직 수행
         if not hasattr(self, 'swin_backbone'):
             return super()._predict_once(x, profile, visualize, embed)
-
-        # ==========================================================
-        # 1단계: Swin Backbone 통과 및 특징맵(Feature Map) 추출
-        # ==========================================================
+        
+        # 1. 고정 입력 해상도 확보
+        x = F.interpolate(x, size=(640, 640), mode='bilinear', align_corners=False)
+        
+        # 2. 백본 및 브릿지 통과
         features = self.swin_backbone(x)
+        aligned_features = self.bridge(features)
         
-        # ==========================================================
-        # 2단계: Bridge 레이어 통과 (채널 차원 정렬)
-        # ==========================================================
-        aligned_features = self.bridge(features) # 반환값: [P3, P4, P5]
-
-        # ==========================================================
-        # 3단계: YOLO Neck / Head 라우팅 (비선형 연결)
-        # ==========================================================
-        y = [None] * len(self.model) # 전체 레이어 수만큼 저장 공간 할당
+        # 3. y 리스트 초기화
+        y = [None] * len(self.model)
         
-        # 순정 YOLO26m 구조상 기존 CNN 백본의 출력이 위치하던 인덱스에 Swin 텐서를 주입합니다.
-        # 이를 통해 이후 Neck의 Concat 레이어들이 이 값을 참조할 수 있게 됩니다.
-        y[4] = aligned_features[0]  # P3 매핑 (256 혹은 512 채널)
-        y[6] = aligned_features[1]  # P4 매핑 (512 채널)
-        y[9] = aligned_features[2]  # P5 매핑 (512 채널)
+        # 4. Bridge 결과 주입 (P3, P4, P5)
+        y[4] = aligned_features[0]
+        y[6] = aligned_features[1]
+        y[9] = aligned_features[2]
+        
+        # 5. [중요] 0~9번 층의 빈 곳을 더미 텐서로 채우기 (에러 방지)
+        for i in range(10):
+            if y[i] is None:
+                if i < 5: y[i] = torch.zeros(1, 512, 80, 80).to(x.device)
+                elif i < 8: y[i] = torch.zeros(1, 512, 40, 40).to(x.device)
+                else: y[i] = torch.zeros(1, 512, 20, 20).to(x.device)
 
-        # Neck 연산의 시작 텐서를 P5로 설정
+        # 6. 이후 Neck/Head 연산 진행
         x = aligned_features[2]
-
         for i, m in enumerate(self.model):
-            # 0~9번(기존 CNN 백본) 구간은 이미 Swin이 처리했으므로 건너뜀
-            if i < 10:
-                continue
-
-            # 10번 이후(Neck/Head) 구간 로직
-            if m.f != -1: # 이전 층의 출력을 참조해야 하는 경우 (예: Concat)
-                if isinstance(m.f, int):
-                    x = y[m.f] if m.f != -1 else x
-                else:
-                    x = [x if j == -1 else y[j] for j in m.f]
-            
-            # 실제 YOLO 레이어 연산 수행
+            if i < 10: continue
+            if m.f != -1:
+                if isinstance(m.f, int): x = y[m.f]
+                else: x = [x if j == -1 else y[j] for j in m.f]
             x = m(x)
-            
-            # 다음 레이어에서 참조할 수 있도록 결과 저장
             y[i] = x if m.i in self.save else None
-            
         return x
+    
+    
     
 # ==========================================================
 # 💡 [새로 추가된 부분] 커스텀 트레이너 (훈련 엔진)
@@ -150,3 +142,13 @@ class SwinYOLOTrainer(DetectionTrainer):
         
         # 예외 상황을 위한 기본 폴백(Fallback)
         return super().get_model(cfg, weights, verbose)
+    
+    # 👇👇 이 함수를 추가해 주세요! 👇👇
+    def get_validator(self):
+        """
+        [핵심 수정] 검증(Validation) 단계에서 YOLO가 멋대로 이미지를 
+        직사각형(Rectangular)으로 자르는 것을 원천 차단합니다.
+        Swin 백본은 정사각형(Square) 입력만 처리할 수 있습니다.
+        """
+        self.args.rect = False 
+        return super().get_validator()

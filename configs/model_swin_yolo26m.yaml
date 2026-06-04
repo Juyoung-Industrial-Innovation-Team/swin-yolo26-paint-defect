@@ -19,6 +19,7 @@ data: "../data/ship_paint_data.yaml"  # 데이터셋 명세서 경로
 imgsz: 640             # 입력 이미지 크기
 #imgsz: 672                # YOLO의 32배수, Swin의 28배수의 최소 공배수.
 epochs: 100                 # 최대 학습 에폭
+rect: False               # 💡 핵심 추가: 검증 시에도 무조건 672x672 정방형 유지!
 #patience: 20                
 #dropout: 0.15 
 
