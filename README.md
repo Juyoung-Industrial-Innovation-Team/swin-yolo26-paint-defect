@@ -7,7 +7,10 @@
 ![EigenCAM comaprison](/paper/figures/EigenCAM_Visualization_20260603.png)
 
 ## 📊 Dashboard
+### Baseline YOLO11m
 ![baseline performance](/runs/baseline_yolo11m_한글라벨밀림/results.png)
+
+### Our fist swin-yolo26 naive model
 ![our swin-yolo26-naive](/runs/swin_yolo26m_naive/results.png)
 
 ## 🚀 Get Started: GitHub 저장소 연동하기 (팀원용)
