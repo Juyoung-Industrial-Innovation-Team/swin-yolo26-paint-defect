@@ -116,7 +116,8 @@ runs/baseline_yolo11m_한글라벨밀림/*
 !runs/baseline_yolo11m_한글라벨밀림/results.png
 !runs/baseline_yolo11m_한글라벨밀림/weights/
 !runs/baseline_yolo11m_한글라벨밀림/weights/best.pt
-runs/swin_yolo26m_naive/weights/*
+runs/swin_yolo26m_naive/*
+!runs/swin_yolo26m_naive/weights/
 !runs/swin_yolo26m_naive/results.csv
 !runs/swin_yolo26m_naive/results.png
 !runs/swin_yolo26m_naive/weights/
