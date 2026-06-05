@@ -6,6 +6,10 @@
 ![our swin-yolo26 model](/paper/figures/swin-yolo_architecture_20260603.png)
 ![EigenCAM comaprison](/paper/figures/EigenCAM_Visualization_20260603.png)
 
+## 📊 Dashboard
+![baseline performance](/runs/baseline_yolo11m_한글라벨밀림/results.png)
+![our swin-yolo26-naive](/runs/swin_yolo26m_naive/results.png)
+
 ## 🚀 Get Started: GitHub 저장소 연동하기 (팀원용)
 GitHub에 익숙하지 않은 팀원들도 아래 순서대로 터미널에 입력하면 프로젝트 환경을 즉시 세팅할 수 있습니다.
 
