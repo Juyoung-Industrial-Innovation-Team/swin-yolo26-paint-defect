@@ -3,7 +3,7 @@
 본 저장소는 **'선박 도장 품질 데이터 활용 온디바이스 감리 지원 시스템'** 구축을 위한 2026 KISCP Spring 학술대회 투고용 프로젝트(주영산업 혁신팀 & UNIST 노바투스대학원 온디바이스AI 수업 Co-sight 팀)입니다. 
 비정방형 고해상도 이미지에서 미세 결함(핀홀, 균열 등)을 손실 없이 탐지하기 위해 **Swin Transformer 백본과 YOLO26의 STAL 헤드를 결합한 하이브리드 아키텍처**를 제안하며, 최종적으로 iPhone 16(CoreML) 환경에서의 온디바이스 실시간 추론을 목표로 합니다.
 
-![our swin-yolo26 model](/paper/figures/swin-yolo architecture_20260603.png)
+![our swin-yolo26 model](/swin-yolo26-paint-defect/paper/figures/swin-yolo%20architecture_20260603.png)
 ![EigenCAM comaprison](/paper/figures/EigenCAM_Visualization_20260603.png)
 
 ## 🚀 Get Started: GitHub 저장소 연동하기 (팀원용)
