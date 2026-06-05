@@ -113,7 +113,9 @@ runs/*
 *.pth
 *.mlpackage
 !runs/.gitkeep
+!runs/baseline_yolo11m_한글라벨밀림/*
 !runs/baseline_yolo11m_한글라벨밀림/results.csv
 !runs/baseline_yolo11m_한글라벨밀림/results.png
+!runs/swin_yolo26m_naive/*
 !runs/swin_yolo26m_naive/results.csv
 !runs/swin_yolo26m_naive/results.png
