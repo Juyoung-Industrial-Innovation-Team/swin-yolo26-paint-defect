@@ -3,7 +3,7 @@
 # ==============================================================
 # 💡 [실행 가이드] 
 # 1. 학습 스크립트 실행
-# !python scripts/train.py --config configs/model_yolo26m.yaml
+# !python scripts/train.py --config configs/model_yolo26m_RTX3090.yaml
 # ==============================================================
 
 # 1. 모델 설정
