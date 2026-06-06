@@ -1,154 +1,100 @@
-"""
-Swin-YOLO26 Hybrid Architecture
-====================================================
-Project: Edge Vision AI-based Ship Painting Quality Inspection
-Architecture Design: 
-  - Backbone : Swin Transformer (Tiny) - 비정방형 고해상도 이미지의 공간적/질감적 특징(Local Texture) 보존
-  - Bridge   : Feature Alignment Bridge - Swin의 텐서 출력을 YOLO Neck이 요구하는 다중 스케일 차원으로 프로젝션
-  - Neck/Head: YOLO26 (Medium) - STAL(Small-Target-Aware Label Assignment) 및 NMS-Free Head 적용
-====================================================
-"""
-
 import torch
 import torch.nn as nn
-import torch.nn.functional as F  # 💡 이 한 줄이 누락되었습니다!
-import timm
-from ultralytics.nn.tasks import DetectionModel
-from ultralytics.models.yolo.detect import DetectionTrainer
 
-class FeatureAlignmentBridge(nn.Module):
+# =====================================================================
+# [Phase 2 ~ 6] 모듈화된 컴포넌트 Import
+# 폴더 구조: models/components/...
+# =====================================================================
+from .components.folding import DynamicLosslessTensorFolding
+from .components.swin_backbone import SwinMicroBackbone
+from .components.feature_alignment_bridge import FeatureAlignmentBridge
+from .components.spn_panet_neck import SPN_PANet
+from .components.nms_free_head import YOLO26NMSFreeHead
+
+
+class SwinYOLO26(nn.Module):
     """
-    [Methodology 3.2] 차원 정렬 브릿지 (Dimensionality Alignment Bridge)
+    [Swin-YOLO26 Hybrid Architecture Main Wrapper]
+    프로젝트: 엣지 비전 AI 기반 선박 도장 품질 감리 시스템
     
-    Swin Transformer 백본의 계층적 채널 출력(C1, C2, C3)을 
-    YOLO26 Neck 모듈(PANet/FPN 구조)이 요구하는 입력 채널 규격으로 변환하는 모듈입니다.
-    이 과정을 통해 두 이질적인 네트워크 간의 텐서 형상(Tensor Shape) 충돌을 방지합니다.
+    이 클래스는 분할 설계된 각 컴포넌트들을 하나로 묶어주는 E2E 파이프라인입니다.
+    사용자는 이 래퍼 클래스만 호출하면 내부의 복잡한 텐서 흐름을 신경 쓸 필요가 없습니다.
     """
-    def __init__(self, swin_channels, target_neck_channels):
+    def __init__(self, nc=8, embed_dim=64, yolo_ch=(256, 512, 512), max_det=300):
+        """
+        Args:
+            nc: 클래스 개수 (양품 1 + 불량 7 = 8)
+            embed_dim: Swin-Micro 백본의 초기 임베딩 차원
+            yolo_ch: YOLO Neck이 요구하는 채널 리스트 [P3, P4, P5]
+            max_det: NMS-Free 추론 시 추출할 최대 객체 수
+        """
         super().__init__()
-        # [수정] YOLO의 Neck(PANet)이 기대하는 고정 피처 맵 크기
-        self.target_sizes = [80, 40, 20]
-
-        # Swin-Tiny의 출력 채널 [192, 384, 768]을 
-        # YOLO26m의 순정 Neck 입력 채널 [512, 512, 512]로 강제 확장(Projection)
-        self.bridge_p3 = nn.Conv2d(swin_channels[0], target_neck_channels[0], kernel_size=1)
-        self.bridge_p4 = nn.Conv2d(swin_channels[1], target_neck_channels[1], kernel_size=1)
-        self.bridge_p5 = nn.Conv2d(swin_channels[2], target_neck_channels[2], kernel_size=1)
+        self.nc = nc
         
-        # 비선형성 추가 및 텐서 활성화
-        self.act = nn.SiLU(inplace=True)
-
-    def forward(self, features):
-        aligned = []
-        for i, (feat, target_size) in enumerate(zip(features, self.target_sizes)):
-            x = feat.permute(0, 3, 1, 2) # (B, H, W, C) -> (B, C, H, W)
-            if i == 0: x = self.bridge_p3(x)
-            elif i == 1: x = self.bridge_p4(x)
-            else: x = self.bridge_p5(x)
-            
-            # [수정] AdaptivePooling으로 해상도를 target_size로 강제 고정
-            x = F.adaptive_avg_pool2d(x, (target_size, target_size))
-            aligned.append(self.act(x))
-        return aligned
-
-class SwinYOLO26(DetectionModel):
-    """
-    [Methodology 3.3] 하이브리드 아키텍처 통합 (Hybrid Architecture Integration)
-    
-    Ultralytics의 DetectionModel을 상속받아, CNN 기반 순정 백본을 
-    Swin Transformer로 동적 치환(Dynamic Substitution)하는 클래스입니다.
-    """
-    def __init__(self, swin_size='n', yolo_size='m', num_classes=7):
-        # 1. 순정 YOLO26 구조체(yaml)를 기반으로 모델 뼈대 초기화
-        # 이 시점에는 아직 CNN 백본 레이어(0~9번)가 존재합니다.
-        super().__init__(f"yolo26{yolo_size}.yaml", nc=num_classes)
+        print("🚀 [Swin-YOLO26] Initializing Edge-AI Hybrid Pipeline...")
         
-        # 2. Swin Transformer 백본 생성 (timm 활용)
-        # 선박 도장면의 미세 결함 처리를 위해 패치 병합(Patch Merging) 기반의 특징을 추출합니다.
-        # dynamic_img_size=True 옵션으로 가변 해상도(비정방형) 처리를 지원합니다.
-        print("💡 [Swin-YOLO] Swin-Tiny Backbone 로드 중...")
-        self.swin_backbone = timm.create_model(
-            'swin_tiny_patch4_window7_224', 
-            pretrained=True, 
-            features_only=True, 
-            out_indices=(1, 2, 3), # P3, P4, P5 추출
-            dynamic_img_size=True,
-            img_size=640 # 학습/추론 시 기본 해상도
+        # [Phase 2] 동적 형상 적응형 무손실 폴딩 (Zero-Padding & PixelUnshuffle)
+        self.folding = DynamicLosslessTensorFolding(in_channels=3, embed_dim=embed_dim)
+        
+        # [Phase 3] 미세 결함 타겟팅 Swin-Micro 백본 (Swin Transformer Blocks)
+        self.backbone = SwinMicroBackbone(embed_dim=embed_dim, depths=[2, 2, 2])
+        
+        # [Phase 4] 텐서 충돌 방지 차원 정렬 브릿지 (Spatial & Channel Alignment)
+        # Swin 출력 Stride별 채널 [64, 128, 256] -> YOLO Neck [256, 512, 512]
+        self.bridge = FeatureAlignmentBridge(
+            swin_channels=[embed_dim, embed_dim * 2, embed_dim * 4],
+            yolo_channels=yolo_ch
         )
         
-        # 3. 브릿지 채널 설정
-        # 실험을 통해 도출된 Swin 실제 출력 채널과 YOLO26m 요구 채널 매핑
-        actual_swin_channels = [192, 384, 768]
-        target_yolo_channels = [512, 512, 512] 
-        self.bridge = FeatureAlignmentBridge(actual_swin_channels, target_yolo_channels)
-        print("💡 [Swin-YOLO] Feature Alignment Bridge 결합 완료!")
+        # [Phase 5] 연산량 최소화 양방향 융합 넥 (SPN-PANet)
+        self.neck = SPN_PANet(channels=yolo_ch)
+        
+        # [Phase 6] NMS-Free & STAL 최적화 헤드 (Decoupled Head & DFL)
+        self.head = YOLO26NMSFreeHead(nc=nc, ch=yolo_ch, max_det=max_det)
 
-    def _predict_once(self, x, profile=False, visualize=False, embed=None):
-        if not hasattr(self, 'swin_backbone'):
-            return super()._predict_once(x, profile, visualize, embed)
-        
-        # 1. 고정 입력 해상도 확보
-        x = F.interpolate(x, size=(640, 640), mode='bilinear', align_corners=False)
-        
-        # 2. 백본 및 브릿지 통과
-        features = self.swin_backbone(x)
-        aligned_features = self.bridge(features)
-        
-        # 3. y 리스트 초기화
-        y = [None] * len(self.model)
-        
-        # 4. Bridge 결과 주입 (P3, P4, P5)
-        y[4] = aligned_features[0]
-        y[6] = aligned_features[1]
-        y[9] = aligned_features[2]
-        
-        # 5. [중요] 0~9번 층의 빈 곳을 더미 텐서로 채우기 (에러 방지)
-        for i in range(10):
-            if y[i] is None:
-                if i < 5: y[i] = torch.zeros(1, 512, 80, 80).to(x.device)
-                elif i < 8: y[i] = torch.zeros(1, 512, 40, 40).to(x.device)
-                else: y[i] = torch.zeros(1, 512, 20, 20).to(x.device)
 
-        # 6. 이후 Neck/Head 연산 진행
-        x = aligned_features[2]
-        for i, m in enumerate(self.model):
-            if i < 10: continue
-            if m.f != -1:
-                if isinstance(m.f, int): x = y[m.f]
-                else: x = [x if j == -1 else y[j] for j in m.f]
-            x = m(x)
-            y[i] = x if m.i in self.save else None
-        return x
-    
-    
-    
-# ==========================================================
-# 💡 [새로 추가된 부분] 커스텀 트레이너 (훈련 엔진)
-# ==========================================================
-class SwinYOLOTrainer(DetectionTrainer):
-    """
-    [Methodology 3.4] 학습 엔진 파이프라인 (Training Engine)
-    
-    Ultralytics의 기본 학습 엔진을 상속받아, 
-    우리가 직접 조립한 Swin-YOLO26 모델을 훈련 루프에 강제 주입합니다.
-    """
-    def get_model(self, cfg=None, weights=None, verbose=True):
+    def forward(self, x):
         """
-        원래는 yaml을 읽어 모델을 새로 생성하는 함수지만,
-        train.py에서 trainer.model 에 이미 SwinYOLO26을 넣어두었으므로 이를 그대로 반환합니다.
+        [전체 데이터 흐름 (Data Flow)]
         """
-        if hasattr(self, 'model') and self.model is not None:
-            return self.model
+        # 1. Input -> Folding
+        # x: 비정방형 고해상도 이미지 [B, 3, H, W]
+        # x_folded: 128 배수 패딩 및 압축 완료 텐서, meta_info: 복원용 메타데이터
+        x_folded, meta_info = self.folding(x)
         
-        # 예외 상황을 위한 기본 폴백(Fallback)
-        return super().get_model(cfg, weights, verbose)
+        # 2. Folding -> Backbone
+        # swin_features: 멀티 스케일 피처 맵 리스트 [C1, C2, C3]
+        swin_features = self.backbone(x_folded)
+        
+        # 3. Backbone -> Bridge
+        # aligned_features: YOLO 규격으로 번역된 피처 맵 리스트 [P3_in, P4_in, P5_in]
+        aligned_features = self.bridge(swin_features)
+        
+        # 4. Bridge -> Neck
+        # fused_features: Top-Down & Bottom-Up으로 융합된 피처 맵 [P3_out, P4_out, P5_out]
+        fused_features = self.neck(aligned_features)
+        
+        # 5. Neck -> Head
+        # preds: 
+        #  - Training 모드: Loss 계산을 위한 Raw 텐서 리스트
+        #  - Eval 모드: NMS-Free 연산이 끝난 Top-K 객체 정보 (boxes, scores, labels)
+        preds = self.head(fused_features)
+        
+        return preds
+
     
-    # 👇👇 이 함수를 추가해 주세요! 👇👇
-    def get_validator(self):
+    def get_flops_params(self):
         """
-        [핵심 수정] 검증(Validation) 단계에서 YOLO가 멋대로 이미지를 
-        직사각형(Rectangular)으로 자르는 것을 원천 차단합니다.
-        Swin 백본은 정사각형(Square) 입력만 처리할 수 있습니다.
+        논문 작성을 위한 하위 모듈별 파라미터 수 측정 편의 함수 (선택 사항)
         """
-        self.args.rect = False 
-        return super().get_validator()
+        def count_params(module):
+            return sum(p.numel() for p in module.parameters() if p.requires_grad)
+            
+        return {
+            "Folding": count_params(self.folding),
+            "Backbone": count_params(self.backbone),
+            "Bridge": count_params(self.bridge),
+            "Neck": count_params(self.neck),
+            "Head": count_params(self.head),
+            "Total": count_params(self)
+        }
