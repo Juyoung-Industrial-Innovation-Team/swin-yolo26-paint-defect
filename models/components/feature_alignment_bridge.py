@@ -24,6 +24,11 @@ class FeatureAlignmentBridge(nn.Module):
     3. NPU 친화성 (Edge-Device Optimization):
        - Average Pooling과 SPN 모듈은 아이폰 ANE(Apple Neural Engine) 등 
          모바일 NPU에서 하드웨어 가속을 가장 잘 받는 연산 패턴입니다.
+
+    4. 분포 정규화 (Cross-Domain Distribution Alignment):
+       - Swin Transformer의 LayerNorm 기반 출력 분포와 YOLO 넥의 BatchNorm 기반 수용 분포 간의 불일치를 해소합니다.
+       - 브릿지 출력단에 BatchNorm2d를 적용하여, 이질적인 도메인 간의 데이터 통계량을 동기화함으로써
+         학습 초기 불안정성을 제거하고 NPU에서의 Conv-BN Fusion 최적화를 극대화합니다.
     """
     def __init__(self, swin_channels=[64, 128, 256], yolo_channels=[256, 512, 512], spn_groups=4):
         """
@@ -41,26 +46,24 @@ class FeatureAlignmentBridge(nn.Module):
         
         # 2. 채널 정렬을 위한 암호학적 SPN 투영 (기존 1x1 Conv 대체)
         # C1 -> P3 투영
-        self.bridge_p3 = SPNModule(
-            in_channels=swin_channels[0], 
-            out_channels=yolo_channels[0], 
-            groups=spn_groups
-        )
+        self.bridge_p3 = self._make_bridge_block(swin_channels[0], yolo_channels[0], spn_groups)
         
         # C2 -> P4 투영
-        self.bridge_p4 = SPNModule(
-            in_channels=swin_channels[1], 
-            out_channels=yolo_channels[1], 
-            groups=spn_groups
-        )
+        self.bridge_p4 = self._make_bridge_block(swin_channels[1], yolo_channels[1], spn_groups)
         
         # C3 -> P5 투영
-        self.bridge_p5 = SPNModule(
-            in_channels=swin_channels[2], 
-            out_channels=yolo_channels[2], 
-            groups=spn_groups
-        )
+        self.bridge_p5 = self._make_bridge_block(swin_channels[2], yolo_channels[2], spn_groups)
 
+    def _make_bridge_block(self, in_c, out_c, groups):
+        """
+        NPU 최적화를 위해 Conv(SPN) - BN - Act를 하나의 블록으로 묶습니다.
+        """
+        return nn.Sequential(
+            SPNModule(in_channels=in_c, out_channels=out_c, groups=groups),
+            nn.BatchNorm2d(out_c), # ★ 핵심 정규화 계층 추가
+            nn.SiLU(inplace=True)
+        )
+    
     def forward(self, features):
         """
         Input: 
