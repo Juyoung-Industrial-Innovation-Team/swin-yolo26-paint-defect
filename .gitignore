@@ -122,3 +122,8 @@ runs/swin_yolo26m_naive/*
 !runs/swin_yolo26m_naive/results.png
 !runs/swin_yolo26m_naive/weights/
 !runs/swin_yolo26m_naive/weights/best.pt
+runs/baseline_yolo26m/*
+!runs/baseline_yolo26m/results.csv
+!runs/baseline_yolo26m/results.png
+!runs/baseline_yolo26m/weights/
+!runs/baseline_yolo26m/weights/best.pt
