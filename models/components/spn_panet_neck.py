@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from .sp_network import SPNModule # SPN 모듈 재사용
+from .sp_network import SPNBlock # SPN 모듈 재사용
 
 class SPN_PANet(nn.Module):
     """
@@ -17,31 +17,35 @@ class SPN_PANet(nn.Module):
             spn_groups: SPN 그룹 분할 수 (기본 4)
         """
         super().__init__()
+        self.spn_groups = spn_groups
         c3, c4, c5 = channels  # 256, 512, 512
 
         # ---------------------------------------------------------
         # [1] Top-Down Pathway (하향식 피처 융합: 의미론적 정보 전달)
         # ---------------------------------------------------------
         self.upsample = nn.Upsample(scale_factor=2, mode='nearest') # FLOPs = 0
-        
-        # P5(Up) + P4 Concat 후 융합
-        self.td_spn_p4 = SPNModule(in_channels=c5 + c4, out_channels=c4, groups=spn_groups)
-        
-        # P4(Up) + P3 Concat 후 융합
-        self.td_spn_p3 = SPNModule(in_channels=c4 + c3, out_channels=c3, groups=spn_groups)
 
         # ---------------------------------------------------------
         # [2] Bottom-Up Pathway (상향식 피처 융합: 공간적 로컬 정보 전달)
         # ---------------------------------------------------------
         # FLOP-Free 공간 차원 축소 (Conv stride=2 대신 AvgPool2d 사용)
         self.downsample = nn.AvgPool2d(kernel_size=2, stride=2)
-        
-        # P3(Down) + P4(Top-Down) Concat 후 융합
-        self.bu_spn_p4 = SPNModule(in_channels=c3 + c4, out_channels=c4, groups=spn_groups)
-        
-        # P4(Down) + P5 Concat 후 융합
-        self.bu_spn_p5 = SPNModule(in_channels=c4 + c5, out_channels=c5, groups=spn_groups)
 
+        # 각 Concat 이후의 채널 수를 고려하여 정의
+        self.td_spn_p4 = self._make_fusion_block(c5 + c4, c4)
+        self.td_spn_p3 = self._make_fusion_block(c4 + c3, c3)
+        self.bu_spn_p4 = self._make_fusion_block(c3 + c4, c4)
+        self.bu_spn_p5 = self._make_fusion_block(c4 + c5, c5)
+
+    def _make_fusion_block(self, in_c, out_c):
+        """
+        [NPU 최적화] SPN 연산 후 BN + SiLU를 묶어 커널 퓨전 유도
+        """
+        return nn.Sequential(
+            SPNBlock(in_channels=in_c, out_channels=out_c, groups=self.spn_groups, use_act=False),
+            nn.BatchNorm2d(out_c),
+            nn.SiLU(inplace=True)
+        )
 
     def forward(self, features):
         """

@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from .sp_network import SPNModule
+from .sp_network import SPNBlock # SPN 모듈 재사용
 
 class SPNPatchMerging(nn.Module):
     """
@@ -19,7 +19,7 @@ class SPNPatchMerging(nn.Module):
         
         # 2. SPN 모듈: 4*dim 채널을 2*dim으로 압축하면서 혼돈/확산(Confusion/Diffusion) 적용
         # (예: 64채널 입력 -> unshuffle 후 256채널 -> SPN 후 128채널 출력)
-        self.spn = SPNModule(in_channels=4 * dim, out_channels=2 * dim, groups=4)
+        self.spn = SPNBlock(in_channels=4 * dim, out_channels=2 * dim, groups=4, use_act=False)
         
         # 3. 정규화
         self.norm = norm_layer(2 * dim)
