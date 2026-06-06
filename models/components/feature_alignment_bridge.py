@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from .sp_network import SPNModule # 구현하신 SPN 모듈 재사용
+from .sp_network import SPNBlock # 구현하신 SPN 모듈 재사용
 
 class FeatureAlignmentBridge(nn.Module):
     """
@@ -59,9 +59,9 @@ class FeatureAlignmentBridge(nn.Module):
         NPU 최적화를 위해 Conv(SPN) - BN - Act를 하나의 블록으로 묶습니다.
         """
         return nn.Sequential(
-            SPNModule(in_channels=in_c, out_channels=out_c, groups=groups),
+            SPNBlock(in_channels=in_c, out_channels=out_c, groups=groups, use_act=False),
             nn.BatchNorm2d(out_c), # ★ 핵심 정규화 계층 추가
-            nn.SiLU(inplace=True)
+            nn.SiLU(inplace=True)  # 활성화 함수는 Conv-BN Fusion에 최적화된 SiLU 사용
         )
     
     def forward(self, features):

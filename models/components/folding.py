@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
-from .sp_network import SPNModule # 분리된 모듈 임포트
+from .sp_network import SPNBlock # 분리된 모듈 임포트
 
 class DynamicLosslessTensorFolding(nn.Module):
     """
@@ -38,7 +38,7 @@ class DynamicLosslessTensorFolding(nn.Module):
         
         # S-Box (치환): 채널 정렬을 위한 1x1 투영. 
         # 기존 Conv2d를 대체하여 암호학적 구조를 완성합니다.
-        self.spn = SPNModule(in_channels=in_channels * 16, out_channels=embed_dim, groups=4)
+        self.spn = SPNBlock(in_channels=in_channels * 16, out_channels=embed_dim, groups=4, use_act=True)
 
         # ✅ 좋은 방향: 공간 차원(H, W)을 제외하고 오직 고정 하이퍼파라미터인 embed_dim만 명시!
         # PyTorch LayerNorm은 정수 하나만 주어지면 텐서의 '최하위(마지막) 차원'을 기준으로 정규화합니다.
