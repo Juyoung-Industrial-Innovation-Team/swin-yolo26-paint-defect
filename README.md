@@ -10,6 +10,9 @@
 ### Baseline YOLO11m
 ![baseline performance](/runs/baseline_yolo11m_한글라벨밀림/results.png)
 
+### Baseline YOLO26m
+![baseline performance](/runs/baseline_yolo26m/results.png)
+
 ### Our fist swin-yolo26 naive model
 ![our swin-yolo26-naive](/runs/swin_yolo26m_naive/results.png)
 
