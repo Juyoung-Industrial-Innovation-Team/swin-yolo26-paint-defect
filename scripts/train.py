@@ -12,6 +12,7 @@ import os
 import sys
 import argparse
 import yaml
+import torch
 
 # 💡 OMP 다중 라이브러리 충돌 에러 방지
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
@@ -69,7 +70,10 @@ def main():
         custom_backbone_cfg = config.pop('backbone_config', {})
         custom_folding_cfg = config.pop('folding_config', {})
         custom_yolo_cfg = config.pop('yolo_config', {})
-        custom_freeze_epochs = config.pop('freeze_epochs', {})
+
+        # ⭐ [추가/수정] yaml에서 freeze_epochs 값을 가져오고, config에서 제거
+        # yaml에 설정이 없으면 기본값 20 사용
+        freeze_epochs = config.pop('freeze_epochs', 20)
 
         # 커스텀 트레이너 로드
         from models.swin_yolo26 import SwinYOLOTrainer
@@ -77,7 +81,67 @@ def main():
         # 💡 [핵심] 트레이너 인스턴스화 (이때 overrides로 설정값 묶음을 전달)
         # 트레이너 내부에서 get_model()이 호출되며 자동으로 우리의 SwinYOLO26이 장착됩니다.
         trainer = SwinYOLOTrainer(overrides=config)
+
+        # 2. 💡 [에러 해결] cfg 인자를 명시하여 모델 생성! (NoneType 에러 원천 차단)
+        target_cfg = config.get('model', 'yolo26m.yaml') 
+        model = trainer.get_model(cfg=target_cfg)
         
+        # 3. 💡 사전 학습 가중치 메모리에 로드
+        pretrained_path = r".\runs\baseline_yolo26m\weights\best.pt"
+        if os.path.exists(pretrained_path):
+            print(f"📥 사전 학습 가중치 로드 중: {pretrained_path}")
+            pretrained_dict = torch.load(pretrained_path, map_location='cpu')['model'].float().state_dict()
+            model_dict = model.state_dict()
+            
+            # 4. 💡 수동 이식 (Weight Injection) 로직
+            matched_layers = 0
+            for pre_k, pre_v in pretrained_dict.items():
+                for mod_k in model_dict.keys():
+                    # 이름의 맨 끝 2마디(예: 'cv2', 'weight')와 텐서 모양이 일치하면 덮어씌움
+                    if pre_k.split('.')[-2:] == mod_k.split('.')[-2:] and pre_v.shape == model_dict[mod_k].shape:
+                        model_dict[mod_k] = pre_v
+                        matched_layers += 1
+                        break # 짝을 찾았으니 다음 가중치로
+
+            # 이식된 딕셔너리를 모델에 최종 업데이트
+            model.load_state_dict(model_dict, strict=False)
+            print(f"🎯 수동 가중치 이식 성공: 총 {matched_layers}개의 레이어가 매핑되었습니다!")
+        else:
+            print("⚠️ 사전 학습 가중치 파일이 없습니다. 무작위 초기화(Random Init)로 시작합니다.")
+
+        # =====================================================================
+        # ⭐ [추가 로직] Swin Backbone & Bridge 동결 (Freeze) 로직
+        # =====================================================================
+        print(f"❄️ 초기 {freeze_epochs} 에포크 동안 Swin Backbone 및 Bridge 레이어를 동결합니다.")
+        
+        frozen_layers = []
+        for name, param in model.named_parameters():
+            # 'swin_backbone' 이나 'bridge' 이름이 포함된 파라미터는 기울기 계산을 끕니다.
+            if 'swin_backbone' in name or 'bridge' in name:
+                param.requires_grad = False
+                frozen_layers.append(name)
+        
+        print(f"🔒 총 {len(frozen_layers)}개의 파라미터 텐서가 동결되었습니다.")
+        
+        # Ultralytics 훈련 루프 내에서 특정 시점에 동결을 푸는 콜백(Callback) 함수 정의
+        def unfreeze_callback(trainer):
+            # 현재 에포크가 freeze_epochs에 도달하면
+            if trainer.epoch == freeze_epochs:
+                print(f"\n🔥 [Epoch {freeze_epochs}] Swin Backbone 및 Bridge의 동결을 해제합니다. 전체 모델 학습 시작!")
+                unfrozen_count = 0
+                for name, param in trainer.model.named_parameters():
+                    if 'swin_backbone' in name or 'bridge' in name:
+                        param.requires_grad = True
+                        unfrozen_count += 1
+                print(f"🔓 총 {unfrozen_count}개의 파라미터 텐서가 활성화되었습니다.")
+
+        # 트레이너에 매 에포크 시작 시 작동할 콜백 함수 등록
+        trainer.add_callback("on_train_epoch_start", unfreeze_callback)
+        # =====================================================================
+
+        # 5. 💡 가중치가 꽉 찬 모델을 트레이너에 장착!
+        trainer.model = model
+
         # 🚀 훈련 시작 (이 한 줄로 DDP, AMP, 데이터로더, Loss 계산이 전부 자동으로 돌아갑니다)
         trainer.train()
         

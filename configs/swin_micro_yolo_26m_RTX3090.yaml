@@ -46,8 +46,9 @@ yolo_config:
 epochs: 100                           # 최대 반복 학습 횟수
 freeze_epochs: 20                    # ⭐ 초기 20 Epoch 동안 Swin 백본 및 Folding 레이어 동결 (가중치 보호)
 patience: 20                          # [Early Stopping] 20 Epoch 동안 mAP 개선 없으면 학습 자동 종료
-optimizer: "AdamW"                    # Transformer 아키텍처 가중치 평탄화에 필수적인 최적화 함수
-lr0: 0.001                            # 초기 학습률 (CNN 대비 세밀한 조정을 위해 1/10 수준으로 하향)
+optimizer: "MuSGD"                    # Transformer 아키텍처 가중치 평탄화에 필수적인 최적화 함수
+lr0: 0.01                            # 초기 학습률 (CNN 대비 세밀한 조정을 위해 1/10 수준으로 하향)
+momentum: 0.9                         # MuSGD의 모멘텀 계수 (Transformer 안정성에 최적화된 값)
 lrf: 0.01                             # 최종 학습률 도달 비율 (0.00001까지 점진적 감소)
 warmup_epochs: 3.0                    # 학습 초기(3 Epoch) 발산 방지를 위한 서서히 학습률 상승
 weight_decay: 0.05                    # 하이브리드 모델의 과적합(Overfitting) 방지
