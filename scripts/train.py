@@ -3,8 +3,8 @@ Swin-YOLO26 Hybrid Model Training Script
 ====================================================
 Project: Edge Vision AI-based Ship Painting Quality Inspection
 Description: 
-  이 스크립트는 베이스라인(YOLO11m) 모델과 제안하는 하이브리드(Swin-YOLO26) 모델을
-  동일한 환경에서 공정하게 학습시키기 위한 통합 훈련 엔진입니다.
+  이 스크립트는 제안하는 하이브리드(Swin-YOLO26) 모델을
+  순정 Ultralytics 환경과 동일한 조건에서 공정하게 학습시키기 위한 통합 훈련 엔진입니다.
 ====================================================
 """
 
@@ -12,24 +12,21 @@ import os
 import sys
 import argparse
 import yaml
-import torch
 
-# 💡 [핵심 해결 1] OMP 다중 라이브러리 충돌 에러 방지 (반드시 맨 위에 위치)
+# 💡 OMP 다중 라이브러리 충돌 에러 방지
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
-# 💡 [핵심 해결 2] 프로젝트 루트 경로를 가장 먼저 시스템에 강제 주입
-# 실행 위치에 상관없이 항상 'swin-yolo26-paint-defect' 폴더를 기준으로 삼도록 만듭니다.
-# __file__은 현재 스크립트(scripts/train.py)의 절대 경로를 가리킵니다.
+# 💡 프로젝트 절대 경로 강제 주입
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, '..'))
 
 if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT) # append 대신 insert(0)을 써서 최우선 순위로 만듭니다.
+    sys.path.insert(0, PROJECT_ROOT)
 
 def main():
     # 1. 터미널 명령어 매개변수 설정
     parser = argparse.ArgumentParser(description="선박 도장 결함 탐지 모델 학습 스크립트")
-    parser.add_argument('--config', type=str, required=True, help='학습 설정 파일 경로 (예: configs/model_swin_yolo26m.yaml)')
+    parser.add_argument('--config', type=str, required=True, help='학습 설정 파일 경로 (예: configs/swin_micro_yolo_26m.yaml)')
     args = parser.parse_args()
 
     # 2. YAML 설정 파일 읽기
@@ -37,71 +34,59 @@ def main():
     with open(config_path, 'r', encoding='utf-8') as f:
         config = yaml.safe_load(f)
 
-    # 3. 모델 파일명과 저장 폴더명 추출
-    model_name_or_path = config.pop('model_path') # yaml 안의 model_path 값을 가져오고 config에서 제거
+    # 3. 절대 경로 고정 및 설정값 매핑
+    model_name_or_path = config.pop('model_path') # 순정 yaml 타겟 (yolo26m.yaml)
     config_name = os.path.basename(args.config).replace('.yaml', '')
     
-    # 🚨 데이터셋 명세서의 절대 경로를 강제 할당합니다.
+    # 🚨 데이터셋 및 결과물 저장 절대 경로 강제 할당
     YAML_PATH = os.path.join(PROJECT_ROOT, "data", "ship_paint_data.yaml")
-    
-    # 저장될 폴더의 절대 경로 설정
     RUNS_PATH = os.path.join(PROJECT_ROOT, "runs")
     
-    # config 딕셔너리에 절대 경로를 직접 주입 (기존 값이 있으면 덮어씁니다)
+    # config에 절대 경로 주입
     config['data'] = YAML_PATH
+    config['project'] = RUNS_PATH
+    config['name'] = f"exp_{config_name}"
+    config['model'] = model_name_or_path # 더미 구조체 우회용
     
-    print("=" * 60)
-    print(f"🚀 읽어들인 설정 파일: {config_path}")
-    print(f"🧠 로드할 모델 타겟: {model_name_or_path}")
+    print("\n" + "=" * 70)
+    print("🚢 선박 도장 품질 결함 탐지 - 하이브리드 학습 파이프라인 가동")
+    print("=" * 70)
+    print(f"📄 읽어들인 설정 파일: {config_path}")
+    print(f"🧠 베이스라인 구조 타겟: {model_name_or_path}")
     print(f"📊 할당된 데이터 경로: {YAML_PATH}")
-    print(f"📁 결과물 저장 폴더: {RUNS_PATH}/exp_{config_name}")
-    print("=" * 60)
+    print(f"📁 결과물 저장 폴더: {RUNS_PATH}\\{config['name']}")
+    print("=" * 70 + "\n")
 
     # =========================================================================
-    # 4. 커스텀 파이썬 모델 분기 처리 (Ablation Study 대응)
+    # 4. 모델 분기 처리 및 훈련 시작
     # =========================================================================
     
-    # 제안 모델: Swin-YOLO26 (하이브리드 아키텍처)
-    # config 파일명이 'swin'을 포함하거나, model_path가 커스텀 yaml을 가리키는 경우
     if "swin" in config_name.lower():
-        print("🛠️ [Ours] 하이브리드 아키텍처(Swin-YOLO26) 훈련 모드 가동...")
+        print("🛠️ [Ours] Swin-YOLO26 아키텍처 주입 (Architecture Injection) 시작...")
         
-        # 앞서 구현한 커스텀 모델과 트레이너를 로드합니다.
-        # sys.path.insert(0, PROJECT_ROOT) 덕분에 models 폴더를 직접 찾을 수 있습니다.
-        from models.swin_yolo26 import SwinYOLO26, SwinYOLOTrainer
+        # 💡 [핵심 해결] Ultralytics가 모르는 커스텀 파라미터들을 제거(pop)하여 충돌을 막습니다.
+        # (이 값들은 yaml에서 빼내어 백업해두고, 트레이너에게는 순정 인자만 넘깁니다.)
+        custom_backbone_cfg = config.pop('backbone_config', {})
+        custom_folding_cfg = config.pop('folding_config', {})
+        custom_yolo_cfg = config.pop('yolo_config', {})
+        custom_freeze_epochs = config.pop('freeze_epochs', {})
+
+        # 커스텀 트레이너 로드
+        from models.swin_yolo26 import SwinYOLOTrainer
         
-        # 모델 객체를 직접 인스턴스화 (이 과정에서 Bridge 채널 맵핑이 완료됨)
-        # 클래스 개수(nc)는 ship_paint_data.yaml에 정의된 7개로 고정
-        model_instance = SwinYOLO26(swin_size='n', yolo_size='m', num_classes=7)
+        # 💡 [핵심] 트레이너 인스턴스화 (이때 overrides로 설정값 묶음을 전달)
+        # 트레이너 내부에서 get_model()이 호출되며 자동으로 우리의 SwinYOLO26이 장착됩니다.
+        trainer = SwinYOLOTrainer(overrides=config)
         
-        # 훈련 인자 구성
-        train_args = config.copy()
-        # 💡 [핵심] Ultralytics 내부 검증 로직을 통과하기 위해 순정 yaml 파일명 명시
-        # trainer는 이 문자열을 보고 내부 레이어 구조를 그리지만, 
-        # 우리가 직후에 trainer.model = model_instance로 덮어씌울 것이므로 문제없습니다.
-        train_args['model'] = "yolo26m.yaml" 
-        train_args['project'] = RUNS_PATH
-        train_args['name'] = f"exp_{config_name}"
-        
-        # 💡 [핵심 연동] 트레이너 객체 생성 
-        trainer = SwinYOLOTrainer(overrides=train_args)
-        
-        # 💡 [가장 중요한 부분] 생성된 트레이너에 우리가 수술한 하이브리드 모델 객체를 강제 이식
-        trainer.model = model_instance 
-        
-        # 학습 시작
+        # 🚀 훈련 시작 (이 한 줄로 DDP, AMP, 데이터로더, Loss 계산이 전부 자동으로 돌아갑니다)
         trainer.train()
         
-    # 베이스라인 모델: YOLO11m (비교 대조군)
     else:
         print("⚙️ [Baseline] 순정 YOLO 훈련 모드 가동...")
         from ultralytics import YOLO
         
-        # 순정 가중치(.pt) 로드 (model_name_or_path 에는 'yolo11m.pt' 등이 들어있어야 함)
         model = YOLO(model_name_or_path)
-        
-        # DFL 등 순정 학습 시작
-        model.train(project=RUNS_PATH, name=f"exp_{config_name}", **config)
+        model.train(**config)
 
 if __name__ == '__main__':
     main()

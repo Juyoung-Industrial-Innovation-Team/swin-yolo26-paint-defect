@@ -22,6 +22,9 @@ class SPNOperation(nn.Module):
     """
     def __init__(self, in_channels, out_channels, groups=4):
         super().__init__()
+        # 💡 개선 1: 입력 채널 유효성 검증
+        assert in_channels % groups == 0, f"in_channels({in_channels}) must be divisible by groups({groups})"
+
         self.groups = groups
         
         # S-Box: Group Conv를 사용하여 파라미터와 연산량을 대폭 절감 (1/groups)

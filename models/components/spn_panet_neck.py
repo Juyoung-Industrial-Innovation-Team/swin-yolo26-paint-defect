@@ -10,15 +10,20 @@ class SPN_PANet(nn.Module):
     기존 YOLO Neck의 무거운 C3k2 및 Dense 1x1 Conv를 암호학적 SPN 구조로 대체하여,
     연산량(FLOPs)을 극단적으로 최소화한 양방향(Top-Down & Bottom-Up) 피처 융합 모듈.
     """
-    def __init__(self, channels=[256, 512, 512], spn_groups=4):
+    def __init__(self, in_channels=[256, 512, 512], out_channels=[256, 512, 512], spn_groups=4):
         """
         Args:
             channels: Bridge에서 넘어온 P3, P4, P5의 채널 수 (예: Medium 체급 [256, 512, 512])
             spn_groups: SPN 그룹 분할 수 (기본 4)
         """
         super().__init__()
+
+        # 💡 [필수] 이 정보를 인스턴스 변수로 저장하여 나중에 forward에서 활용
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+
         self.spn_groups = spn_groups
-        c3, c4, c5 = channels  # 256, 512, 512
+        c3, c4, c5 = self.in_channels  # 256, 512, 512
 
         # ---------------------------------------------------------
         # [1] Top-Down Pathway (하향식 피처 융합: 의미론적 정보 전달)
