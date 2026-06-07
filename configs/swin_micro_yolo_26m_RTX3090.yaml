@@ -5,9 +5,10 @@
 
 # [Phase 1] Input & Data Pipeline (입력 및 전처리부)
 # ------------------------------------------------------------------------------
+model_path: "yolo26m.yaml"  # 이 줄을 추가하세요! (베이스라인 구조 지정)
 data: "../data/ship_paint_data.yaml"  # 클래스 메타데이터 (양품 1종 + 불량 7종 = 총 8종)
 imgsz: 640                            # 데이터로더가 원본에서 잘라낼 패치(Tile/Crop)의 기준 규격
-batch: 4                              # Swin 어텐션 연산량 및 RTX 3090 OOM 방지를 위한 보수적 배치
+batch: 32                              # Swin 어텐션 연산량 및 RTX 3090 OOM 방지를 위한 보수적 배치
 workers: 4                            # 멀티프로세싱 데이터 로딩 코어 수
 cache: false                          # 423GB 방대한 데이터의 RAM 과부하를 막기 위해 캐싱 비활성화
 

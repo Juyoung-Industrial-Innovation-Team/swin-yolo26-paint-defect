@@ -106,7 +106,12 @@ class WindowAttention(nn.Module):
         q, k, v = qkv[0], qkv[1], qkv[2]
 
         q = q * self.scale
+
+        # 💡 [핵심 해결] 연산 전 정밀도 동기화
+        # 입력 텐서 x의 정밀도에 맞춰 attn과 v의 정밀도를 강제 캐스팅
+        dtype = x.dtype
         attn = (q @ k.transpose(-2, -1))
+        v = v.to(dtype)
 
         # 위치 편향 더하기
         relative_position_bias = self.relative_position_bias_table[self.relative_position_index.view(-1)].view(
@@ -120,7 +125,7 @@ class WindowAttention(nn.Module):
             attn = attn.view(B_ // nW, nW, self.num_heads, N, N) + mask.unsqueeze(1).unsqueeze(0)
             attn = attn.view(-1, self.num_heads, N, N)
             
-        attn = self.softmax(attn)
+        attn = self.softmax(attn).to(dtype)
         x = (attn @ v).transpose(1, 2).reshape(B_, N, C)
         x = self.proj(x)
         return x
@@ -150,6 +155,10 @@ class SwinTransformerBlock(nn.Module):
         )
 
     def forward(self, x):
+        # 🛡️ [Tensor Shield] 입력이 튜플이나 리스트라면 0번 요소만 텐서로 추출
+        if isinstance(x, (tuple, list)):
+            x = x[0]
+
         H, W = x.shape[1], x.shape[2]
         B, L, C = x.shape[0], H * W, x.shape[3]
 
@@ -246,6 +255,8 @@ class SwinStage(nn.Module):
         """
         for block in self.blocks:
             x = block(x)
+            if isinstance(x, (tuple, list)):
+                x = x[0]
         return x
 
 class SwinMicroBackbone(nn.Module):
@@ -253,7 +264,7 @@ class SwinMicroBackbone(nn.Module):
     선박 도장 결함 탐지를 위한 온디바이스 맞춤형 Swin-Micro 백본.
     출력으로 멀티 스케일 피처맵 (C1, C2, C3) 리스트를 반환하여 YOLO Neck과 결합합니다.
     """
-    def __init__(self, embed_dim=64, depths=[2, 2, 2], num_heads=[2, 4, 8], window_size=8, mlp_ratio=4., qkv_bias=True, drop_path_rate=0.1):
+    def __init__(self, embed_dim=64, depths=[2, 2, 2], num_heads=[2, 4, 8], window_size=8, mlp_ratio=4., qkv_bias=True, drop_path_rate=0.1, pretrained=False):
         super().__init__()
         
         self.num_layers = len(depths)
@@ -310,4 +321,4 @@ class SwinMicroBackbone(nn.Module):
         # outs[0] (C1) -> [B, 64,  H/4,  W/4]  (Stride 4)
         # outs[1] (C2) -> [B, 128, H/8,  W/8]  (Stride 8)
         # outs[2] (C3) -> [B, 256, H/16, W/16] (Stride 16)
-        return outs
+        return outs[0], outs[1], outs[2] # 튜플 대신 3개의 텐서로 명확히 분리
