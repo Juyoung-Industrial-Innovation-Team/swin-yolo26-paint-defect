@@ -112,12 +112,12 @@ def main():
         # =====================================================================
         # ⭐ [추가 로직] Swin Backbone & Bridge 동결 (Freeze) 로직
         # =====================================================================
-        print(f"❄️ 초기 {freeze_epochs} 에포크 동안 Swin Backbone 및 Bridge 레이어를 동결합니다.")
+        print(f"❄️ 초기 {freeze_epochs} 에포크 동안 Swin Backbone 레이어를 동결합니다.")
         
         frozen_layers = []
         for name, param in model.named_parameters():
-            # 'swin_backbone' 이나 'bridge' 이름이 포함된 파라미터는 기울기 계산을 끕니다.
-            if 'swin_backbone' in name or 'bridge' in name:
+            # 'swin_backbone' 이름이 포함된 파라미터는 기울기 계산을 끕니다.
+            if 'swin_backbone' in name:
                 param.requires_grad = False
                 frozen_layers.append(name)
         
@@ -127,10 +127,10 @@ def main():
         def unfreeze_callback(trainer):
             # 현재 에포크가 freeze_epochs에 도달하면
             if trainer.epoch == freeze_epochs:
-                print(f"\n🔥 [Epoch {freeze_epochs}] Swin Backbone 및 Bridge의 동결을 해제합니다. 전체 모델 학습 시작!")
+                print(f"\n🔥 [Epoch {freeze_epochs}] Swin Backbone 동결을 해제합니다. 전체 모델 학습 시작!")
                 unfrozen_count = 0
                 for name, param in trainer.model.named_parameters():
-                    if 'swin_backbone' in name or 'bridge' in name:
+                    if 'swin_backbone' in name:
                         param.requires_grad = True
                         unfrozen_count += 1
                 print(f"🔓 총 {unfrozen_count}개의 파라미터 텐서가 활성화되었습니다.")
